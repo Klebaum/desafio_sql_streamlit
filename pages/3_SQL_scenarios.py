@@ -1,16 +1,16 @@
 import streamlit as st
-from service.connect import init_connection
 from sql_consults.sql import fill_database, create_tables
 from Homepage import data
 from functions_sql import get_sales_2020, get_team, quarterly_sales
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
-conn = init_connection()
+# Create the connection with the database SNOWFLAKE
+conn = st.connection("snowflake")
 st.title("SQL Scenarios")
 
 # Create the tables in the database
-create_tables(conn)
+#create_tables(conn)
 
 # Fill the tables with the data
 fill_database(data, conn)
@@ -37,10 +37,10 @@ with col3:
     # Construct a table with the sales per quarter
     st.subheader("Vendas por trimestre")
     df = quarterly_sales(conn)
-    df['ano'] = df['ano'].astype(int).astype(str)
-    df['trimestre'] = df['trimestre'].astype(int)
-    df['valor'] = df['valor'].astype(str)
-    df['valor'] = 'R$ ' + df['valor'].apply(lambda x: '{:,.2f}'.format(float(x)))
+    df['ANO'] = df['ANO'].astype(int).astype(str)
+    df['TRIMESTRE'] = df['TRIMESTRE'].astype(int)
+    df['VALOR'] = df['VALOR'].astype(str)
+    df['VALOR'] = 'R$ ' + df['VALOR'].apply(lambda x: '{:,.2f}'.format(float(x)))
 
     st.dataframe(df, width=600)
 
@@ -52,10 +52,10 @@ with col4:
     # Offset to separate the bars of each year
     offset = 0.2
 
-    for i, ano in enumerate(df['ano'].unique()):
-        df_ano = df[df['ano'] == ano]
+    for i, ano in enumerate(df['ANO'].unique()):
+        df_ano = df[df['ANO'] == ano]
 
-        plt.bar(df_ano['trimestre'] + i * offset, df_ano['valor'], width=0.2, label=str(ano))
+        plt.bar(df_ano['TRIMESTRE'] + i * offset, df_ano['VALOR'], width=0.2, label=str(ano))
 
     plt.xlabel('Trimestres') 
     plt.ylabel('Valor de Vendas')
@@ -64,8 +64,8 @@ with col4:
     formatter = mticker.FuncFormatter(lambda x, _: f'{x / 1e6:.0f}M')
     plt.gca().yaxis.set_major_formatter(formatter)
 
-    quarters_labels = [f"{int(trimestre)}º trimestre" for trimestre in df['trimestre']]
-    plt.xticks(ticks=df['trimestre'] + ((len(df['ano'].unique()) - 1) / 2) * offset, labels=quarters_labels)
+    quarters_labels = [f"{int(trimestre)}º TRIMESTRE" for trimestre in df['TRIMESTRE']]
+    plt.xticks(ticks=df['TRIMESTRE'] + ((len(df['ANO'].unique()) - 1) / 2) * offset, labels=quarters_labels)
 
     plt.legend()
     plt.tight_layout() 

@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from snowflake.connector.pandas_tools import pd_writer
 
 
 def create_tables(conn):
@@ -36,23 +37,6 @@ def create_tables(conn):
     """
     execute_sql_instruction(script_sql, conn)
 
-def execute_sql_query(query, conn):
-    """_summary_ : Query the database and return a dataframe
-
-    Args:
-        query (_type_): String with the SQL query
-        conn (_type_): psycopg2.connection
-
-    Returns:
-        _type_: None
-    """
-    try:
-        df = pd.read_sql_query(query, conn)
-        return df
-    except Exception as e:
-        st.error(f"Erro ao executar a consulta: {e}")
-        return None
-
 
 def execute_sql_instruction(query, conn):
     """_summary_ : Execute a SQL query
@@ -64,9 +48,16 @@ def execute_sql_instruction(query, conn):
     try:
         with conn.cursor() as cursor:
             cursor.execute(query)
-            conn.commit()
     except Exception as e:
         st.error(f"Erro ao executar a instrução SQL: {e}")
+
+
+def check_empty_table(table_name, cursor):
+    query_check_empty = f"SELECT COUNT(*) FROM {table_name};"
+    cursor.execute(query_check_empty)
+    result_empty_check = cursor.fetchone()
+    
+    return result_empty_check
 
 
 def fill_database(data, conn):
@@ -76,23 +67,32 @@ def fill_database(data, conn):
         data (_type_): Pandas dataframe
         conn (_type_): psycopg2.connection
     """
+    cursor = conn.cursor()
+
     client_names = data['Cliente'].unique()
     sellers_team = data.groupby('Vendedor')['Equipe'].agg(lambda x: ', '.join(x.unique())).reset_index() 
 
     if conn:
-        for client in client_names:
-            query_client = f"INSERT INTO CLIENTE (Nome) VALUES ('{client}') ON CONFLICT (Nome) DO NOTHING;"
-            execute_sql_instruction(query_client, conn)
-        
-        for index, row in sellers_team.iterrows():
-            seller = row['Vendedor']
-            team = row['Equipe']
-            
-            query_seller = f"INSERT INTO VENDEDOR (Nome, Timee) VALUES ('{seller}', '{team}') ON CONFLICT (Nome) DO NOTHING;"
-            execute_sql_instruction(query_seller, conn)
+        result_empty_check = check_empty_table('CLIENTE', cursor)
+
+        if result_empty_check is not None and result_empty_check[0] == 0:
+            st.warning("A tabela 'CLIENTE' está vazia. Inserindo dados.")
+            client_values = [(client,) for client in client_names]
+            query_client = "INSERT INTO CLIENTE (Nome) VALUES (:1);"
+            cursor.executemany(query_client, client_values)
+
+        result_empty_check = check_empty_table('VENDEDOR', cursor)
+
+        if result_empty_check is not None and result_empty_check.iloc[0, 0] == 0:
+            st.warning("A tabela 'VENDEDOR' está vazia. Inserindo dados.")
+            for index, row in sellers_team.iterrows():
+                seller = row['Vendedor']
+                team = row['Equipe']
+                query_seller = f"INSERT INTO VENDEDOR (Nome, Timee) VALUES ('{seller}', '{team}');"
+                execute_sql_instruction(query_seller, conn)
 
         query_check_empty = "SELECT COUNT(*) FROM VENDA;"
-        result_empty_check = execute_sql_query(query_check_empty, conn)
+        result_empty_check = conn.query(query_check_empty)
         if result_empty_check is not None and result_empty_check.iloc[0, 0] == 0:
             st.warning("A tabela 'VENDA' está vazia. Inserindo dados.")
             for index, row in data.iterrows():
