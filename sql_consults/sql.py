@@ -83,34 +83,28 @@ def fill_database(data, conn):
 
         result_empty_check = check_empty_table('VENDEDOR', cursor)
 
-        if result_empty_check is not None and result_empty_check.iloc[0, 0] == 0:
+        if result_empty_check is not None and result_empty_check[0] == 0:
             st.warning("A tabela 'VENDEDOR' está vazia. Inserindo dados.")
-            for index, row in sellers_team.iterrows():
-                seller = row['Vendedor']
-                team = row['Equipe']
-                query_seller = f"INSERT INTO VENDEDOR (Nome, Timee) VALUES ('{seller}', '{team}');"
-                execute_sql_instruction(query_seller, conn)
+            seller_values = [(row['Vendedor'], row['Equipe']) for index, row in sellers_team.iterrows()]
+            query_seller = "INSERT INTO VENDEDOR (Nome, Timee) VALUES (:1, :2);"
+            cursor.executemany(query_seller, seller_values)
 
-        query_check_empty = "SELECT COUNT(*) FROM VENDA;"
-        result_empty_check = conn.query(query_check_empty)
-        if result_empty_check is not None and result_empty_check.iloc[0, 0] == 0:
+        result_empty_check = check_empty_table('VENDA', cursor)
+        if result_empty_check is not None and result_empty_check[0] == 0:
             st.warning("A tabela 'VENDA' está vazia. Inserindo dados.")
-            for index, row in data.iterrows():
-                nome_cliente = row['Cliente']
-                id_venda = row['ID']
-                tipo = row['Tipo']
-                data_da_venda = row['Data da Venda']
-                categoria = row['Categoria']
-                nome_vendedor = row['Vendedor']
-                regional = row['Regional']
-                duracao_do_contrato = row['Duração do Contrato (Meses)']
-                equipe = row['Equipe']
-                valor = row['Valor']
+            data['Data da Venda'] = pd.to_datetime(data['Data da Venda'])
 
-                query_insercao_venda = f"INSERT INTO VENDA (Nome_cliente, ID, Tipo, DataDaVenda, Categoria, Nome_vendedor, Regional, DuracaoDoContrato, Equipe, Valor) " \
-                                    f"VALUES ('{nome_cliente}', '{id_venda}', '{tipo}', '{data_da_venda}', '{categoria}', '{nome_vendedor}', '{regional}', {duracao_do_contrato}, '{equipe}', {valor});"
-                
-                execute_sql_instruction(query_insercao_venda, conn)
+            # Then convert 'Data da Venda' to string
+            data['Data da Venda'] = data['Data da Venda'].dt.date.astype(str)
+            sale_values = [
+                    (row['Cliente'], row['ID'], row['Tipo'], row['Data da Venda'], row['Categoria'], row['Vendedor'], 
+                    row['Regional'], row['Duração do Contrato (Meses)'], row['Equipe'], row['Valor']) 
+                    for index, row in data.iterrows()
+                ]
+            
+            query_sale = ("INSERT INTO VENDA (Nome_Cliente, ID, Tipo, DataDaVenda, Categoria, Nome_vendedor, Regional, DuracaoDoContrato, Equipe, Valor) " 
+            "VALUES (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10);")
+            cursor.executemany(query_sale, sale_values)
 
             st.success("Dados inseridos com sucesso.")
     else:
